@@ -1,0 +1,3 @@
+RESUME EXTRACTION RESULT
+=======================
+{'id': '1111111', 'name': 'Liteesh Reddy', 'mobile_number': '9876543210', 'email': 'liteesh@example.com', 'linkedin_url': 'https://linkedin.com/in/liteesh', 'technical_skills': ['Python', 'C++', 'FastAPI', 'SQL', 'React', 'PostgreSQL', 'LangGraph', 'Git', 'GitHub', 'VS Code', 'DBMS', 'Operating Systems'], 'soft_skills': [], 'tech_stacks': [], 'technologies': [], 'tools_and_platforms': ['Git', 'GitHub', 'VS Code'], 'certifications': ['hehe_cloud_certification'], 'work_experience': ['Internship at Google', 'Software Engineer (SWE) at OpenAI'], 'coursework': ['DBMS', 'Operating Systems'], 'achievements': ['First Runner-Up in Perceptive Minds'], 'education': 'B.Tech in Computer Science', 'PEP_score': 99, 'PEP_priority': 1}
