@@ -5,8 +5,9 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
 
 from agents.matcher.graph import matcher_graph
-from agents.db.connection import LocalSession
-from agents.db.models import JobDescription, IdealCandidateModel
+from backend.db.connection import LocalSession
+from backend.models.ideal_candidate import IdealCandidateModel
+from backend.models.job import JobDescription
 from agents.matcher import nodes
 
 

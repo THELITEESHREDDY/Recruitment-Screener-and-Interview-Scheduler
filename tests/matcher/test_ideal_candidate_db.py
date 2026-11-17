@@ -3,8 +3,9 @@ import uuid
 
 import pytest
 
-from agents.db.connection import LocalSession
-from agents.db.models import JobDescription, IdealCandidateModel
+from backend.db.connection import LocalSession
+from backend.models.ideal_candidate import  IdealCandidateModel
+from backend.models.job import  JobDescription
 from agents.matcher.nodes import (
     get_ideal_candidate,
     save_ideal_candidate,

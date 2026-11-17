@@ -6,8 +6,8 @@ from .state.matcher_state import MatcherState
 from .prompts import match_candidate_prompt,generate_ideal_candidate_prompt
 from .schemas import MatchScores, IdealCandidate
 import math
-from agents.db.connection import LocalSession
-from agents.db.models import IdealCandidateModel
+from backend.db.connection import LocalSession
+from backend.models.ideal_candidate import IdealCandidateModel
 
 
 
