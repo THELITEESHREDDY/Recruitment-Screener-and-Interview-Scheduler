@@ -30,6 +30,7 @@ class SecondaryEvaluation(TypedDict):
 
 class RankedCandidate(TypedDict):
     candidate_id: str
+    candidate_name: str
     overall_score: float
     match_scores: dict
     secondary_score: float

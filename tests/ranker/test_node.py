@@ -504,7 +504,9 @@ def test_calculate_secondary_score_handles_boundary_scores():
 
 
 
+
 def test_rank_candidates_sorts_and_assigns_competition_ranks():
+    from agents.ranker.nodes import rank_candidates
 
     state = {
         "existing_candidates": [
@@ -546,7 +548,8 @@ def test_rank_candidates_sorts_and_assigns_competition_ranks():
             }
         ],
         "incoming_candidate": {
-            "id": "candidate_E"
+            "id": "candidate_E",
+            "name": "Candidate E"
         },
         "match_result": {
             "candidate_id": "candidate_E",
@@ -565,7 +568,9 @@ def test_rank_candidates_sorts_and_assigns_competition_ranks():
 
     ranked = result["ranked_candidates"]
 
-    assert [candidate["candidate_id"] for candidate in ranked] == [
+    assert [
+        candidate["candidate_id"] for candidate in ranked
+    ] == [
         "candidate_A",
         "candidate_B",
         "candidate_C",
@@ -573,14 +578,16 @@ def test_rank_candidates_sorts_and_assigns_competition_ranks():
         "candidate_E"
     ]
 
-    assert [candidate["rank"] for candidate in ranked] == [
-        1, 2, 2, 4, 5
-    ]
+    assert [
+        candidate["rank"] for candidate in ranked
+    ] == [1, 2, 2, 4, 5]
+
 
 
 
 
 def test_rank_candidates_updates_existing_candidate():
+    from agents.ranker.nodes import rank_candidates
 
     existing_candidate = {
         "candidate_id": "candidate_A",
@@ -595,7 +602,8 @@ def test_rank_candidates_updates_existing_candidate():
     state = {
         "existing_candidates": [existing_candidate],
         "incoming_candidate": {
-            "id": "candidate_A"
+            "id": "candidate_A",
+            "name": "Candidate A"
         },
         "match_result": {
             "candidate_id": "candidate_A",
@@ -622,6 +630,7 @@ def test_rank_candidates_updates_existing_candidate():
     assert ranked[0]["match_scores"] == {"new": "data"}
     assert ranked[0]["one_line_rationale"] == "Updated evaluation."
     assert ranked[0]["rank"] == 1
+
 
 
 

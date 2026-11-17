@@ -6,7 +6,7 @@ class CandidateState(TypedDict):
     name: str
     mobile_number: str
     email: str
-    linkedin_url: str
+    linkedin_url: str|None
 
     technical_skills: list[str]
     soft_skills: list[str]

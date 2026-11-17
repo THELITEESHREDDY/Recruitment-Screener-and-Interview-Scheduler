@@ -358,6 +358,7 @@ def test_ranker_graph_updates_leaderboard_for_multiple_candidates(
 
 
 
+
 def test_rank_candidates_applies_competition_ranking_and_tiebreaker():
     from agents.ranker.nodes import rank_candidates
 
@@ -402,6 +403,10 @@ def test_rank_candidates_applies_competition_ranking_and_tiebreaker():
 
     state = {
         "existing_candidates": existing_candidates,
+        "incoming_candidate": {
+            "id": "candidate-e",
+            "name": "Candidate E"
+        },
         "match_result": {
             "candidate_id": "candidate-e",
             "overall_score": 87,
@@ -431,3 +436,4 @@ def test_rank_candidates_applies_competition_ranking_and_tiebreaker():
     assert [
         candidate["rank"] for candidate in ranked
     ] == [1, 2, 2, 4, 5]
+

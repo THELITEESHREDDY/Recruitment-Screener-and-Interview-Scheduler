@@ -178,17 +178,30 @@ def validate_match_result(state: MatcherState):
 
     # Validate evaluation sections
     match_scores = result.get("match_scores")
+    print("\n--- MATCHER VALIDATOR DEBUG ---")
+    print("match_result type:", type(match_result))
+    print("result keys:", result.keys())
+    print("match_scores type:", type(match_scores))
+    print("match_scores value:", match_scores)
+    print("match_scores keys:", match_scores.keys() if isinstance(match_scores, dict) else "NOT A DICT")
 
     if not isinstance(match_scores, dict):
         validation_errors.append("Missing or invalid match_scores.")
     else:
         for section in required_sections:
 
-            section_data = match_scores.get(section)
+            section_data = (
+                match_scores.get(section)
+                if isinstance(match_scores, dict)
+                else getattr(match_scores, section, None)
+            )
 
-            if not isinstance(section_data, dict):
+            if section_data is None:
                 validation_errors.append(f"Missing or invalid section: {section}")
                 continue
+
+            if not isinstance(section_data, dict):
+                section_data = section_data.model_dump()
 
             # Validate score
             score = section_data.get("score")

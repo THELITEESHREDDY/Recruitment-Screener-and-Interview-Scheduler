@@ -540,6 +540,7 @@ def rank_candidates(state: RankerState):
 
     incoming_record = {
         "candidate_id": match_result["candidate_id"],
+        "candidate_name": state["incoming_candidate"]["name"],
         "overall_score": match_result["overall_score"],
         "match_scores": match_result["match_scores"],
         "secondary_score": evaluation["weighted_score"],
@@ -697,6 +698,7 @@ def load_existing_rankings(state: RankerState):
         existing_candidates = [
             {
                 "candidate_id": record.candidate_id,
+                "candidate_name": record.candidate.name,
                 "overall_score": record.overall_score,
                 "match_scores": record.match_scores,
                 "secondary_score": record.secondary_score,

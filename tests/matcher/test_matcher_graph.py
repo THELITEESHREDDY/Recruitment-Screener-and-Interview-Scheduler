@@ -9,7 +9,7 @@ from backend.db.connection import LocalSession
 from backend.models.ideal_candidate import IdealCandidateModel
 from backend.models.job import JobDescription
 from agents.matcher import nodes
-
+from agents.matcher import nodes as matcher_nodes
 
 
 
@@ -26,6 +26,77 @@ SECTIONS = [
     "achievements",
     "education",
 ]
+
+
+
+def mock_matcher_llm(monkeypatch):
+    ideal_candidate_response = {
+        "technical_skills": ["Python", "SQL"],
+        "soft_skills": ["Communication", "Problem-solving"],
+        "tech_stacks": ["FastAPI", "PostgreSQL"],
+        "tools_and_platforms": ["Git", "Docker"],
+        "certifications": [],
+        "work_experience": ["Backend development"],
+        "coursework": ["Data Structures", "DBMS"],
+        "achievements": [],
+        "education": "Bachelor's degree in Computer Science",
+        "mandatory_requirements": ["Python", "FastAPI"],
+        "preferred_requirements": ["Docker"],
+        "minimum_experience_years": 1.0,
+        "required_education_level": "Bachelor's degree",
+        "evaluation_weights": {
+            "technical_skills": 0.2,
+            "soft_skills": 0.1,
+            "tech_stacks": 0.15,
+            "tools_and_platforms": 0.1,
+            "certifications": 0.05,
+            "work_experience": 0.15,
+            "coursework": 0.1,
+            "achievements": 0.05,
+            "education": 0.1
+        }
+    }
+
+    section_match = {
+        "score": 80,
+        "justification": "Candidate demonstrates relevant experience.",
+        "matched_items": ["Python"],
+        "missing_items": [],
+        "evidence": ["Candidate profile"]
+    }
+
+    match_scores_response = {
+        section: section_match
+        for section in [
+            "technical_skills",
+            "soft_skills",
+            "tech_stacks",
+            "tools_and_platforms",
+            "certifications",
+            "work_experience",
+            "coursework",
+            "achievements",
+            "education"
+        ]
+    }
+
+    def fake_llm(prompt_value):
+        user_message = prompt_value.messages[-1].content.strip()
+
+        if user_message.startswith("Job Description:"):
+            response = ideal_candidate_response
+        else:
+            response = match_scores_response
+
+        return AIMessage(content=json.dumps(response))
+    
+    monkeypatch.setattr(
+        matcher_nodes,
+        "llm_service",
+        RunnableLambda(fake_llm)
+    )
+
+
 
 
 def valid_match_scores():
@@ -328,8 +399,10 @@ def test_complete_matcher_graph(db_setup, candidate):
 
 
 
-def test_reuse_ideal_candidate_for_same_jd(db_setup, candidate):
+def test_reuse_ideal_candidate_for_same_jd(db_setup, candidate, monkeypatch):
 
+    mock_matcher_llm(monkeypatch)
+    assert isinstance(matcher_nodes.llm_service, RunnableLambda)
     # First candidate: generates and saves the profile
     first_state = {
         "jd_id": db_setup,
@@ -376,7 +449,10 @@ def test_reuse_ideal_candidate_for_same_jd(db_setup, candidate):
 
 
 
-def test_generate_new_ideal_candidate_for_different_jd(db_setup, candidate):
+def test_generate_new_ideal_candidate_for_different_jd(db_setup, candidate, monkeypatch):
+
+    mock_matcher_llm(monkeypatch)
+    assert isinstance(matcher_nodes.llm_service, RunnableLambda)
 
     original_state = {
         "jd_id": db_setup,
