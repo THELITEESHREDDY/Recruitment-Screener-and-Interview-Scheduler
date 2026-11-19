@@ -13,10 +13,10 @@ from sqlalchemy.orm import Mapped, mapped_column,relationship
 
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from backend.models.candidate_ranking import CandidateRanking
-    from backend.models.job_ranking_rubrik import JobRankingRubric
-    from backend.models.ideal_candidate import IdealCandidateModel
+
+from backend.models.candidate_ranking import CandidateRanking
+from backend.models.job_ranking_rubrik import JobRankingRubric
+from backend.models.ideal_candidate import IdealCandidateModel
 
 from ..db.base import Base
 
