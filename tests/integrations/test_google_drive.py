@@ -1,4 +1,4 @@
-import os
+from shared.config import settings
 
 from backend.integrations.google_drive import (
     extract_drive_file_id,
@@ -15,7 +15,7 @@ def test_extract_drive_file_id():
 
 
 def test_download_resume_pdf():
-    resume_url = os.environ["TEST_RESUME_URL"]
+    resume_url = settings.TEST_RESUME_URL
 
     pdf_bytes = download_resume_pdf(resume_url)
 

@@ -12,6 +12,7 @@ from backend.integrations.pipeline_adapter import adapt_candidates_for_pipeline
 from agents.pipeline import run_recruitment_pipeline
 from sqlalchemy import select
 from backend.models.candidate_ranking import CandidateRanking
+from backend.utils.google_sheets import extract_spreadsheet_id
 
 router = APIRouter(
     prefix="/jobs",
@@ -41,13 +42,21 @@ async def screen_candidates(
         )
 
     # 2. Get Google Spreadsheet ID
-    spreadsheet_id = os.getenv("GOOGLE_SPREADSHEET_ID")
-
-    if not spreadsheet_id:
+    if not job.spreadsheet_url:
         raise HTTPException(
-            status_code=500,
-            detail="GOOGLE_SPREADSHEET_ID is not configured"
+            status_code=400,
+            detail="No Google Sheet configured for this job"
         )
+
+    try:
+        spreadsheet_id = extract_spreadsheet_id(
+            job.spreadsheet_url
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc)
+        ) from exc
 
     # 3. Fetch candidate responses and resume PDFs
     candidates = fetch_candidates(spreadsheet_id)

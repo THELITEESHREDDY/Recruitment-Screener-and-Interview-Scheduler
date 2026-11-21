@@ -11,7 +11,11 @@ def test_screen_candidates(db_setup, monkeypatch):
     app.dependency_overrides[get_db] = lambda: db_setup
 
     job = JobDescription(
-        job_description="Python Backend Engineer"
+        job_description="Python Backend Engineer",
+        spreadsheet_url=(
+            "https://docs.google.com/spreadsheets/"
+            "d/TEST_SPREADSHEET_001/edit"
+        )
     )
 
     db_setup.add(job)
@@ -57,10 +61,7 @@ def test_screen_candidates(db_setup, monkeypatch):
         mock_pipeline
     )
 
-    monkeypatch.setenv(
-        "GOOGLE_SPREADSHEET_ID",
-        "test-spreadsheet-id"
-    )
+   
 
     try:
         client = TestClient(app)
@@ -91,7 +92,11 @@ def test_screen_skips_already_ranked_candidates(
     app.dependency_overrides[get_db] = lambda: db_setup
 
     job = JobDescription(
-        job_description="Python Backend Engineer"
+        job_description="Python Backend Engineer",
+        spreadsheet_url=(
+            "https://docs.google.com/spreadsheets/"
+            "d/TEST_SPREADSHEET_001/edit"
+        )
     )
 
     candidate = Candidate(
@@ -120,10 +125,7 @@ def test_screen_skips_already_ranked_candidates(
     db_setup.add(ranking)
     db_setup.commit()
 
-    monkeypatch.setenv(
-        "GOOGLE_SPREADSHEET_ID",
-        "test-spreadsheet-id"
-    )
+   
 
     monkeypatch.setattr(
         screening,
@@ -180,7 +182,11 @@ def test_screen_processes_only_new_candidates(
     app.dependency_overrides[get_db] = lambda: db_setup
 
     job = JobDescription(
-        job_description="Python Backend Engineer"
+        job_description="Python Backend Engineer",
+        spreadsheet_url=(
+            "https://docs.google.com/spreadsheets/"
+            "d/TEST_SPREADSHEET_001/edit"
+        )
     )
 
     existing_candidate = Candidate(
@@ -209,10 +215,6 @@ def test_screen_processes_only_new_candidates(
     db_setup.add(existing_ranking)
     db_setup.commit()
 
-    monkeypatch.setenv(
-        "GOOGLE_SPREADSHEET_ID",
-        "test-spreadsheet-id"
-    )
 
     # Google Forms contains an existing and a new candidate.
     monkeypatch.setattr(
@@ -289,7 +291,11 @@ def test_screen_processes_only_new_candidates(
     app.dependency_overrides[get_db] = lambda: db_setup
 
     job = JobDescription(
-        job_description="Python Backend Engineer"
+        job_description="Python Backend Engineer",
+        spreadsheet_url=(
+            "https://docs.google.com/spreadsheets/"
+            "d/TEST_SPREADSHEET_001/edit"
+        )
     )
 
     existing_candidate = Candidate(
@@ -318,10 +324,6 @@ def test_screen_processes_only_new_candidates(
     db_setup.add(existing_ranking)
     db_setup.commit()
 
-    monkeypatch.setenv(
-        "GOOGLE_SPREADSHEET_ID",
-        "test-spreadsheet-id"
-    )
 
     # Google Forms contains an existing and a new candidate.
     monkeypatch.setattr(
@@ -387,6 +389,184 @@ def test_screen_processes_only_new_candidates(
         assert pipeline_calls[0]["top_n"] == 1
 
         assert response.json()["ranked_candidates"][0]["candidate_id"] == "CAND_002"
+
+    finally:
+        app.dependency_overrides.clear()
+
+def test_each_job_uses_its_own_spreadsheet(
+    db_setup,
+    monkeypatch
+):
+    app.dependency_overrides[get_db] = lambda: db_setup
+
+    job_a = JobDescription(
+        job_description="Python Backend Engineer",
+        spreadsheet_url=(
+            "https://docs.google.com/spreadsheets/d/SHEET_A/edit"
+        )
+    )
+
+    job_b = JobDescription(
+        job_description="Frontend Engineer",
+        spreadsheet_url=(
+            "https://docs.google.com/spreadsheets/d/SHEET_B/edit"
+        )
+    )
+
+    db_setup.add_all([job_a, job_b])
+    db_setup.commit()
+
+    fetched_spreadsheets = []
+
+    def mock_fetch_candidates(spreadsheet_id):
+        fetched_spreadsheets.append(spreadsheet_id)
+
+        return [
+            {
+                "candidate_id": f"CAND_{spreadsheet_id}"
+            }
+        ]
+
+    monkeypatch.setattr(
+        screening,
+        "fetch_candidates",
+        mock_fetch_candidates
+    )
+
+    monkeypatch.setattr(
+        screening,
+        "adapt_candidates_for_pipeline",
+        lambda candidates: candidates
+    )
+
+    async def mock_pipeline(**kwargs):
+        return {
+            "ranked_candidates": [],
+            "candidate_errors": []
+        }
+
+    monkeypatch.setattr(
+        screening,
+        "run_recruitment_pipeline",
+        mock_pipeline
+    )
+
+    try:
+        client = TestClient(app)
+
+        response_a = client.post(
+            f"/jobs/{job_a.id}/screen"
+        )
+
+        response_b = client.post(
+            f"/jobs/{job_b.id}/screen"
+        )
+
+        assert response_a.status_code == 200
+        assert response_b.status_code == 200
+
+        assert fetched_spreadsheets == [
+            "SHEET_A",
+            "SHEET_B"
+        ]
+
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_screen_multiple_candidates(
+    db_setup,
+    monkeypatch
+):
+    app.dependency_overrides[get_db] = lambda: db_setup
+
+    job = JobDescription(
+        job_description="Python Backend Engineer",
+        spreadsheet_url=(
+            "https://docs.google.com/spreadsheets/d/TEST_SHEET/edit"
+        )
+    )
+
+    db_setup.add(job)
+    db_setup.commit()
+    db_setup.refresh(job)
+
+    # Simulate three candidates fetched from Google Sheets.
+    mock_candidates = [
+        {"candidate_id": "CAND_001"},
+        {"candidate_id": "CAND_002"},
+        {"candidate_id": "CAND_003"},
+    ]
+
+    fetched_ids = []
+    pipeline_inputs = []
+
+    def mock_fetch_candidates(spreadsheet_id):
+        fetched_ids.append(spreadsheet_id)
+        return mock_candidates
+
+    monkeypatch.setattr(
+        screening,
+        "fetch_candidates",
+        mock_fetch_candidates
+    )
+
+    monkeypatch.setattr(
+        screening,
+        "adapt_candidates_for_pipeline",
+        lambda candidates: candidates
+    )
+
+    async def mock_pipeline(**kwargs):
+        pipeline_inputs.extend(kwargs["candidates"])
+
+        return {
+            "ranked_candidates": [
+                {
+                    "candidate_id": candidate["candidate_id"],
+                    "rank": index,
+                    "overall_score": 90 - index
+                }
+                for index, candidate in enumerate(
+                    kwargs["candidates"],
+                    start=1
+                )
+            ],
+            "candidate_errors": []
+        }
+
+    monkeypatch.setattr(
+        screening,
+        "run_recruitment_pipeline",
+        mock_pipeline
+    )
+
+    try:
+        client = TestClient(app)
+
+        response = client.post(
+            f"/jobs/{job.id}/screen"
+        )
+
+        assert response.status_code == 200
+
+        assert fetched_ids == ["TEST_SHEET"]
+
+        assert len(pipeline_inputs) == 3
+
+        assert {
+            candidate["candidate_id"]
+            for candidate in pipeline_inputs
+        } == {
+            "CAND_001",
+            "CAND_002",
+            "CAND_003"
+        }
+
+        data = response.json()
+
+        assert len(data["ranked_candidates"]) == 3
+        assert data["candidate_errors"] == []
 
     finally:
         app.dependency_overrides.clear()

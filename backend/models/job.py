@@ -11,9 +11,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column,relationship
 
-from typing import TYPE_CHECKING
-
-
 from backend.models.candidate_ranking import CandidateRanking
 from backend.models.job_ranking_rubrik import JobRankingRubric
 from backend.models.ideal_candidate import IdealCandidateModel
@@ -27,6 +24,10 @@ class JobDescription(Base):
         String(36),
         primary_key=True,
         default=lambda: str(uuid.uuid4())
+    )
+    spreadsheet_url: Mapped[str | None] = mapped_column(
+        String(2048),
+        nullable=True
     )
 
     job_description: Mapped[str] = mapped_column(

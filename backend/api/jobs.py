@@ -6,6 +6,8 @@ from fastapi import HTTPException
 from backend.db.connection import get_db
 from backend.models.job import JobDescription
 from backend.schemas.job import JobCreate, JobResponse
+from backend.utils.google_sheets import extract_spreadsheet_id
+
 
 router = APIRouter(
     prefix="/jobs",
@@ -21,8 +23,26 @@ def create_job(
     payload: JobCreate,
     db: Session = Depends(get_db)
 ):
+    spreadsheet_url = payload.spreadsheet_url.strip()
+
+    
+    if not spreadsheet_url:
+        raise HTTPException(
+            status_code=422,
+            detail="Google Sheets URL cannot be empty"
+        )
+
+    try:
+        extract_spreadsheet_id(spreadsheet_url)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc)
+        ) from exc
+
     job = JobDescription(
-        job_description=payload.job_description
+        job_description=payload.job_description,
+        spreadsheet_url=spreadsheet_url
     )
 
     db.add(job)

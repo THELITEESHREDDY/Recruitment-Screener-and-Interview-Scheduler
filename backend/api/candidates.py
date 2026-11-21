@@ -1,9 +1,11 @@
-import os
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 
-from fastapi import APIRouter, HTTPException
-
+from backend.db.connection import get_db
 from backend.integrations.candidate_ingestion import fetch_candidates
 from backend.integrations.pipeline_adapter import adapt_candidates_for_pipeline
+from backend.models.job import JobDescription
+from backend.utils.google_sheets import extract_spreadsheet_id
 
 
 router = APIRouter(
@@ -12,24 +14,50 @@ router = APIRouter(
 )
 
 
-@router.post("/sync")
-def sync_candidates():
+@router.post("/sync/{job_id}")
+def sync_candidates(
+    job_id: str,
+    db: Session = Depends(get_db)
+):
     """
-    Fetch Google Forms candidates and prepare
-    them for the recruitment pipeline.
+    Fetch candidates from the Google Sheet
+    associated with the given job.
     """
 
-    spreadsheet_id = os.getenv("GOOGLE_SPREADSHEET_ID")
+    # 1. Retrieve job
+    job = db.get(JobDescription, job_id)
 
-    if not spreadsheet_id:
+    if job is None:
         raise HTTPException(
-            status_code=500,
-            detail="GOOGLE_SPREADSHEET_ID is not configured"
+            status_code=404,
+            detail="Job not found"
         )
 
+    # 2. Check spreadsheet configuration
+    if not job.spreadsheet_url:
+        raise HTTPException(
+            status_code=400,
+            detail="No Google Sheet configured for this job"
+        )
+
+    # 3. Extract spreadsheet ID
+    try:
+        spreadsheet_id = extract_spreadsheet_id(
+            job.spreadsheet_url
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc)
+        ) from exc
+
+    # 4. Fetch candidates
     candidates = fetch_candidates(spreadsheet_id)
 
-    pipeline_candidates = adapt_candidates_for_pipeline(candidates)
+    # 5. Prepare candidates for pipeline
+    pipeline_candidates = adapt_candidates_for_pipeline(
+        candidates
+    )
 
     return {
         "total_candidates": len(pipeline_candidates),

@@ -1,10 +1,10 @@
-import os
+from shared.config import settings
 
 from backend.integrations.google_sheets import get_form_responses
 
 
 def test_google_sheets_connection():
-    spreadsheet_id = os.environ["GOOGLE_SPREADSHEET_ID"]
+    spreadsheet_id = settings.GOOGLE_SHEET_ID
 
     responses = get_form_responses(spreadsheet_id)
 

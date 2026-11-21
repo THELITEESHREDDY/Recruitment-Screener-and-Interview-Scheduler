@@ -9,6 +9,8 @@ ENV_FILE_PATH = BASE_DIR / ".env"
 class Settings(BaseSettings):
 
     GROQ_API_AGENTS_PROVIDER : str
+    GOOGLE_SHEET_ID : str
+    TEST_RESUME_URL : str
 
     model_config=SettingsConfigDict(
         env_file=ENV_FILE_PATH,
