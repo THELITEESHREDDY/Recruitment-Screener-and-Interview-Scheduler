@@ -262,8 +262,6 @@ async def test_complete_recruitment_pipeline(
     print("\nPIPELINE CANDIDATE ERRORS:")
     print(result["candidate_errors"])
 
-    print("\nPIPELINE SCHEDULER ERRORS:")
-    print(result["scheduler_errors"])
     # 11. Verify ranking.
     assert len(result["ranked_candidates"]) == 1
 
@@ -280,8 +278,31 @@ async def test_complete_recruitment_pipeline(
     assert saved_ranking is not None
 
     # 12. Verify scheduling.
-    assert len(result["schedule"]) == 1
-    assert result["schedule"][0]["candidate_id"] == candidate_id
+
 
     assert result["candidate_errors"] == []
-    assert result["scheduler_errors"] == []
+    # Verify pipeline response
+    assert "ranked_candidates" in result
+    assert "candidate_errors" in result
+
+    # Screening no longer performs scheduling
+    assert "schedule" not in result
+    assert "scheduler_errors" not in result
+
+    # Verify successful ranking
+    assert result["candidate_errors"] == []
+    assert len(result["ranked_candidates"]) == 1
+
+    ranked_candidate = result["ranked_candidates"][0]
+
+    assert ranked_candidate["candidate_id"] == candidate_id
+    assert ranked_candidate["rank"] == 1
+
+    # Verify ranking persistence
+    saved_ranking = db_setup.query(CandidateRanking).filter(
+        CandidateRanking.jd_id == jd_id,
+        CandidateRanking.candidate_id == candidate_id
+    ).first()
+
+    assert saved_ranking is not None
+    assert saved_ranking.rank == 1

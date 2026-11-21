@@ -7,7 +7,7 @@ from backend.db.connection import get_db
 from backend.api.jobs import router as jobs_router
 from backend.api.candidates import router as candidates_router
 from backend.api.screening import router as screening_router
-
+from backend.api.scheduling import router as scheduling_router
 
 app = FastAPI(
     title="Recruitment Screener API",
@@ -18,6 +18,7 @@ app = FastAPI(
 
 app.include_router(screening_router)
 app.include_router(candidates_router)
+app.include_router(scheduling_router)
 app.include_router(jobs_router)
 @app.get("/")
 async def root():

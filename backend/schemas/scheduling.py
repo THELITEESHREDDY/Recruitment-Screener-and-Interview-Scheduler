@@ -47,3 +47,12 @@ class SchedulingRequest(BaseModel):
             raise ValueError("Invalid timezone")
 
         return self
+
+
+class WorkingHours(BaseModel):
+    start_time: str
+    end_time: str
+
+
+class InterviewWindow(WorkingHours):
+    date: str

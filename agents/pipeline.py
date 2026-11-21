@@ -3,8 +3,6 @@ from agents.parser.main import process_resume
 from agents.matcher.adapter import adapt_parser_output
 from agents.matcher.graph import matcher_graph
 from agents.ranker.graph import ranker_graph
-from agents.scheduler.adapter import adapt_ranked_candidates
-from agents.scheduler.graph import scheduler_graph
 
 from sqlalchemy import select
 
@@ -119,30 +117,7 @@ async def run_recruitment_pipeline(
             })
 
     # Ranker → Scheduler
-    if ranked_candidates:
-        scheduler_candidates = adapt_ranked_candidates(
-            ranked_candidates
-        )
-
-        scheduler_result = await scheduler_graph.ainvoke({
-            "ranked_candidates": scheduler_candidates,
-            "top_n": top_n,
-            "selected_candidates": [],
-            "available_slots": [],
-            "schedule": [],
-            "errors": []
-        })
-
-        schedule = scheduler_result["schedule"]
-        scheduler_errors = scheduler_result["errors"]
-
-    else:
-        schedule = []
-        scheduler_errors = ["No candidates were successfully ranked"]
-
     return {
         "ranked_candidates": ranked_candidates,
-        "schedule": schedule,
-        "candidate_errors": candidate_errors,
-        "scheduler_errors": scheduler_errors
+        "candidate_errors": candidate_errors
     }

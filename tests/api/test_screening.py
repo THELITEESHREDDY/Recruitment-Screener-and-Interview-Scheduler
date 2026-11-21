@@ -3,7 +3,8 @@ from backend.main import app
 from backend.db.connection import get_db
 from backend.models.job import JobDescription
 from backend.api import screening
-
+from backend.models.candidate import Candidate
+from backend.models.candidate_ranking import CandidateRanking
 
 def test_screen_candidates(db_setup, monkeypatch):
     # Use isolated test database
@@ -47,9 +48,7 @@ def test_screen_candidates(db_setup, monkeypatch):
     async def mock_pipeline(**kwargs):
         return {
             "ranked_candidates": [],
-            "schedule": [],
             "candidate_errors": [],
-            "scheduler_errors": [],
         }
 
     monkeypatch.setattr(
@@ -75,9 +74,9 @@ def test_screen_candidates(db_setup, monkeypatch):
         data = response.json()
 
         assert "ranked_candidates" in data
-        assert "schedule" in data
+        assert "schedule" not in data
         assert "candidate_errors" in data
-        assert "scheduler_errors" in data
+        assert "scheduler_errors" not in data
 
     finally:
         app.dependency_overrides.clear()
@@ -87,8 +86,7 @@ def test_screen_skips_already_ranked_candidates(
     db_setup,
     monkeypatch
 ):
-    from backend.models.candidate import Candidate
-    from backend.models.candidate_ranking import CandidateRanking
+    
 
     app.dependency_overrides[get_db] = lambda: db_setup
 
@@ -177,8 +175,7 @@ def test_screen_processes_only_new_candidates(
     db_setup,
     monkeypatch
 ):
-    from backend.models.candidate import Candidate
-    from backend.models.candidate_ranking import CandidateRanking
+    
 
     app.dependency_overrides[get_db] = lambda: db_setup
 
@@ -287,8 +284,7 @@ def test_screen_processes_only_new_candidates(
     db_setup,
     monkeypatch
 ):
-    from backend.models.candidate import Candidate
-    from backend.models.candidate_ranking import CandidateRanking
+    
 
     app.dependency_overrides[get_db] = lambda: db_setup
 
@@ -353,11 +349,14 @@ def test_screen_processes_only_new_candidates(
 
         return {
             "ranked_candidates": [
-                {"candidate_id": "CAND_002", "rank": 1}
+                {
+                    "candidate_id": "CAND_002",
+                    "candidate_name": "New Candidate",
+                    "rank": 1,
+                    "overall_score": 90.0
+                }
             ],
-            "schedule": [],
-            "candidate_errors": [],
-            "scheduler_errors": []
+            "candidate_errors": []
         }
 
     monkeypatch.setattr(
