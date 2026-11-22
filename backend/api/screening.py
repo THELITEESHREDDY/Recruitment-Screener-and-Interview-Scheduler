@@ -13,6 +13,8 @@ from agents.pipeline import run_recruitment_pipeline
 from sqlalchemy import select
 from backend.models.candidate_ranking import CandidateRanking
 from backend.utils.google_sheets import extract_spreadsheet_id
+from backend.core.job_dependency import get_owned_job
+from backend.models.job import JobDescription
 
 router = APIRouter(
     prefix="/jobs",
@@ -24,7 +26,8 @@ router = APIRouter(
 async def screen_candidates(
     job_id: str,
     top_n: int = 3,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    job: JobDescription = Depends(get_owned_job)
 ):
     if top_n < 1:
         raise HTTPException(
@@ -32,14 +35,7 @@ async def screen_candidates(
             detail="top_n must be at least 1"
         )
 
-    # 1. Retrieve job description
-    job = db.get(JobDescription, job_id)
-
-    if not job:
-        raise HTTPException(
-            status_code=404,
-            detail="Job not found"
-        )
+   
 
     # 2. Get Google Spreadsheet ID
     if not job.spreadsheet_url:

@@ -13,7 +13,7 @@ import backend.models.candidate
 import backend.models.candidate_ranking
 import backend.models.ideal_candidate
 import backend.models.job_ranking_rubrik
-
+import backend.db.init_db
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

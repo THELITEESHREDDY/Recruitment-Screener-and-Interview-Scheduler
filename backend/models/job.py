@@ -10,7 +10,7 @@ from sqlalchemy import (
     ForeignKey
 )
 from sqlalchemy.orm import Mapped, mapped_column,relationship
-
+from backend.models.users import User
 from backend.models.candidate_ranking import CandidateRanking
 from backend.models.job_ranking_rubrik import JobRankingRubric
 from backend.models.ideal_candidate import IdealCandidateModel
@@ -46,4 +46,15 @@ class JobDescription(Base):
 
     candidate_rankings: Mapped[list["CandidateRanking"]] = relationship(
         back_populates="job_description"
+    )
+
+    user_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("users.id"),
+        nullable=True,
+        index=True
+    )
+
+    owner: Mapped["User | None"] = relationship(
+        back_populates="jobs"
     )

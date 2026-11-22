@@ -1,4 +1,5 @@
 from datetime import date, time
+from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, model_validator
@@ -56,3 +57,29 @@ class WorkingHours(BaseModel):
 
 class InterviewWindow(WorkingHours):
     date: str
+
+
+class SchedulingRequest(BaseModel):
+    mode: Literal["explicit", "automatic"]
+    top_n: int = Field(default=3, ge=1)
+    interview_duration_minutes: int = Field(ge=1)
+
+    schedule: list[InterviewWindow] | None = None
+    start_date: str | None = None
+    daily_working_hours: WorkingHours | None = None
+
+    @model_validator(mode="after")
+    def validate_mode_fields(self):
+        if self.mode == "explicit":
+            if not self.schedule:
+                raise ValueError(
+                    "Explicit scheduling requires schedule"
+                )
+        else:
+            if not self.start_date or not self.daily_working_hours:
+                raise ValueError(
+                    "Automatic scheduling requires start_date "
+                    "and daily_working_hours"
+                )
+
+        return self

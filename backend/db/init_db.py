@@ -6,6 +6,7 @@ from backend.models.job_ranking_rubrik import JobRankingRubric
 from backend.models.candidate import Candidate
 from backend.models.candidate_ranking import CandidateRanking
 from backend.models.ideal_candidate import IdealCandidateModel
+from backend.models.users import User
 # Import your IdealCandidateModel module here as well.
 
 

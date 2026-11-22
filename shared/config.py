@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     GROQ_API_AGENTS_PROVIDER : str
     GOOGLE_SHEET_ID : str
     TEST_RESUME_URL : str
+    JWT_SECRET_KEY : str
+    JWT_ALGORITHM : str
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES : int
 
     model_config=SettingsConfigDict(
         env_file=ENV_FILE_PATH,
