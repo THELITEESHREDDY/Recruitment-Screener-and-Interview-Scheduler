@@ -1,229 +1,172 @@
 # Matcher Agent
 
-The Matcher Agent is a LangGraph-based recruitment evaluation agent that evaluates candidate profiles against job descriptions (JDs) using an LLM-generated Ideal Candidate profile.
+The Matcher Agent evaluates a structured candidate profile against a job-specific ideal candidate profile. It uses LangGraph to orchestrate ideal-profile retrieval or generation, LLM-based section matching, weighted scoring, validation, and bounded retries.
 
-It generates an Ideal Candidate profile for each job description, persists it in the database, and reuses it when evaluating additional candidates for the same JD. Each candidate receives an individual evaluation with section-wise scores, evidence, justifications, and an overall weighted match score.
+## Position in the pipeline
 
-## Features
+```text
+Resume PDF → Parser Agent → adapt_parser_output() → Matcher Agent → Ranker Agent
+                                              ↑
+                                       Job description
+```
 
-- **Ideal Candidate Generation:** Uses an LLM to extract job requirements and construct an Ideal Candidate profile.
-- **Database Persistence:** Saves the generated Ideal Candidate profile against its corresponding JD.
-- **Profile Reusability:** Retrieves an existing Ideal Candidate profile instead of generating it again for every candidate.
-- **Candidate Evaluation:** Evaluates candidates across nine independent sections.
-- **Weighted Scoring:** Calculates an overall match score using evaluation weights assigned to each section.
-- **Output Validation:** Validates the structure and contents of the LLM-generated matching result.
-- **Automatic Retries:** Retries invalid matching results up to two times.
-- **JD Isolation:** Maintains a separate Ideal Candidate profile for each job description.
+The Parser produces a candidate dictionary. `agents/matcher/adapter.py` maps it into `CandidateState`, retaining identification, contact details, nine evaluation fields, and PEP metadata. The adapter uses direct key lookups, so missing fields raise `KeyError`. The Parser's `technologies` field is not included in the Matcher candidate contract.
 
 ## Architecture
 
-The Matcher Agent is implemented using LangGraph with a state-driven workflow.
-
-### Graph Workflow
-
 ```mermaid
 flowchart TD
-    A([START]) --> B[get_ideal_candidate]
-    B --> C{Profile exists?}
-
-    C -->|Yes| F[match_candidate]
-    C -->|No| D[generate_ideal_candidate]
-
-    D --> E[save_ideal_candidate]
-    E --> F
-
-    F --> G[calculate_match_score]
-    G --> H[validate_match_result]
-
-    H -->|Valid| I([END])
-    H -->|Invalid and retries available| J[prepare_retry]
-    J --> F
-    H -->|Maximum retries reached| I
+    START --> Get[get_ideal_candidate]
+    Get --> Exists{Ideal profile exists?}
+    Exists -->|Yes| Match[match_candidate]
+    Exists -->|No| Generate[generate_ideal_candidate]
+    Generate --> Save[save_ideal_candidate]
+    Save --> Match
+    Match --> Score[calculate_match_score]
+    Score --> Validate[validate_match_result]
+    Validate --> Decision{validation_router}
+    Decision -->|success| END
+    Decision -->|failed| END
+    Decision -->|retry| Retry[prepare_retry]
+    Retry --> Match
 ```
 
-### Node Responsibilities
+`agents/matcher/graph.py` defines and compiles `matcher_graph` using `StateGraph(MatcherState)`.
 
-| Node | Responsibility |
-|---|---|
-| `get_ideal_candidate` | Retrieves the Ideal Candidate profile associated with the JD from the database. |
-| `generate_ideal_candidate` | Generates an Ideal Candidate profile using the job description and LLM. |
-| `save_ideal_candidate` | Persists the generated profile in the database. |
-| `match_candidate` | Evaluates the candidate against the Ideal Candidate profile. |
-| `calculate_match_score` | Calculates the weighted overall match score. |
-| `validate_match_result` | Validates the matching output and identifies errors. |
-| `prepare_retry` | Increments the retry counter and resets validation errors before another attempt. |
+## Node responsibilities
 
-## Evaluation Criteria
+| Node | Behavior |
+| --- | --- |
+| `get_ideal_candidate` | Queries `IdealCandidateModel` by `jd_id`; returns the stored profile or `None`. |
+| `ideal_candidate_router` | Routes to matching if a profile exists, otherwise to generation. |
+| `generate_ideal_candidate` | Uses `generate_ideal_candidate_prompt`, the shared LLM service, and `JsonOutputParser` to produce a job-specific profile. |
+| `save_ideal_candidate` | Inserts the generated profile into the database; rolls back on failure. |
+| `match_candidate` | Uses `match_candidate_prompt` and the LLM to produce nine section evaluations against the ideal profile. |
+| `calculate_match_score` | Computes a weighted overall score and records scoring validation errors. |
+| `validate_match_result` | Checks candidate ID, overall score, and the structure and content of all nine sections. |
+| `validation_router` | Returns `success`, `retry`, or `failed` based on validation errors and retry count. |
+| `prepare_retry` | Increments retry count and clears validation errors before another match attempt. |
 
-Each candidate is evaluated across nine sections:
+## State and data contracts
 
-1. Technical Skills
-2. Soft Skills
-3. Tech Stacks
-4. Tools and Platforms
-5. Certifications
-6. Work Experience
-7. Coursework
-8. Achievements
-9. Education
+`agents/matcher/state/` defines:
 
-Each section produces:
+- `candidate.py` — `CandidateState`: `id`, `name`, `mobile_number`, `email`, optional LinkedIn value, `technical_skills`, `soft_skills`, `tech_stacks`, `tools_and_platforms`, `certifications`, `work_experience`, `coursework`, `achievements`, `education`, `PEP_score`, and `PEP_priority`.
+- `ideal_candidate.py` — `IdealCandidate`: the nine role requirements, `mandatory_requirements`, `preferred_requirements`, `minimum_experience_years`, `required_education_level`, and `evaluation_weights`.
+- `match_result.py` — `SectionMatch`, `MatchScores`, and `MatchResult`.
+- `matcher_state.py` — `MatcherState`: `jd_id`, `job_description`, `candidate`, optional `ideal_candidate`, optional `match_result`, `retry_count`, and `validation_errors`.
 
-- `score`: Evaluation score between 0 and 100.
-- `justification`: Explanation of the evaluation.
-- `matched_items`: Requirements demonstrated by the candidate.
-- `missing_items`: Requirements not demonstrated by the candidate.
-- `evidence`: Supporting information from the candidate profile.
+The nine independently evaluated sections are:
 
-## Weighted Match Scoring
+1. `technical_skills`
+2. `soft_skills`
+3. `tech_stacks`
+4. `tools_and_platforms`
+5. `certifications`
+6. `work_experience`
+7. `coursework`
+8. `achievements`
+9. `education`
 
-The Ideal Candidate profile contains evaluation weights assigned to each section based on the job requirements.
+Each `SectionMatch` contains a numeric `score`, a `justification`, and string lists named `matched_items`, `missing_items`, and `evidence`. Scores are intended to range from 0 to 100.
 
-Weights must sum to 100.
+The current `MatchResult` TypedDict contains `candidate_id`, `match_scores`, and `overall_score`. The separate Pydantic `MatchResult` schema additionally declares `eligibility_status`, `recommendation`, and `recommendation_reason`, but the shown graph nodes do not populate those fields.
 
-The overall match score is calculated using:
+## Evaluation and scoring
+
+The ideal-candidate prompt assigns non-negative weights across all nine sections, totaling **100**, with higher weights for requirements more relevant to the job description. A section may receive zero weight.
+
+For section scores \(s_i\) and weights \(w_i\), the scoring node calculates:
 
 \[
-OverallScore = \sum_{i=1}^{n}
-\left(SectionScore_i \times \frac{Weight_i}{100}\right)
+\text{overall_score} = \operatorname{round}\left(\sum_i s_i \frac{w_i}{\sum_j w_j}, 2\right)
 \]
 
-For example, a technical skill section with a score of 80 and a weight of 25 contributes 20 points to the overall score.
+The matching prompt requires a score, short justification, matched requirements, missing requirements, and supporting evidence for every section. It instructs the model not to fabricate qualifications and to treat missing information as unverified.
 
-The final score is rounded to two decimal places.
+## Validation and retries
 
-## Retry Mechanism
+`validate_match_result` checks that:
 
-The Matcher Agent validates the generated matching result before completing execution.
+- `candidate_id` is a nonempty string.
+- `overall_score` is finite and between 0 and 100.
+- All nine match sections are present.
+- Each section has a finite numeric score between 0 and 100 and a nonempty justification.
+- `matched_items`, `missing_items`, and `evidence` are lists of strings.
 
-If validation errors are detected:
+In the provided `nodes.py`, `MAX_RETRIES = 2`, allowing an initial matching attempt plus at most two retries **when validation returns errors**. The graph ends on either success or exhausted retries; callers should inspect `validation_errors` rather than assuming every completed graph run succeeded. Exceptions from the LLM or database are not handled by this validation retry path.
 
-1. The validation node identifies the errors.
-2. The graph checks whether retries are available.
-3. The retry preparation node increments the retry counter.
-4. The matching node executes again.
-5. The new result is scored and validated.
+## Usage
 
-The maximum number of retries is **2**, meaning the agent can make up to three matching attempts in total.
+The Matcher receives the Parser's output after adaptation. The following illustrates the integration from an asynchronous caller:
 
-If all attempts fail validation, the graph terminates with the remaining validation errors.
+```python
+from agents.parser.main import process_resume
+from agents.matcher.adapter import adapt_parser_output
+from agents.matcher.graph import matcher_graph
 
-## Database Design
+parsed_candidate = await process_resume(
+    pdf=pdf_upload,
+    candidate_id="CAND_001",
+    pep_score=0,
+    pep_priority=0,
+)
 
-The Ideal Candidate profile is associated with its job description using `jd_id`.
+candidate = adapt_parser_output(parsed_candidate)
 
-Conceptually:
+result = matcher_graph.invoke({
+    "jd_id": "JD001",
+    "job_description": job_description,
+    "candidate": candidate,
+    "retry_count": 0,
+    "validation_errors": [],
+})
+
+if result.get("validation_errors"):
+    raise ValueError(result["validation_errors"])
+
+match_result = result["match_result"]
+```
+
+`pdf_upload` and `job_description` must be supplied by the calling application. The example is illustrative, not a standalone runnable script.
+
+## Project files
 
 ```text
-JobDescription
-      |
-      | 1:1
-      |
-IdealCandidate
+agents/matcher/
+├── adapter.py
+├── graph.py
+├── main.py
+├── nodes.py
+├── prompts.py
+├── README.md
+├── schemas.py
+└── state/
+    ├── candidate.py
+    ├── ideal_candidate.py
+    ├── matcher_state.py
+    └── match_result.py
 ```
 
-The database stores the generated profile, including:
+- `adapter.py`: Parser-to-Matcher field mapping.
+- `graph.py`: LangGraph nodes, edges, conditional routes, and compiled graph.
+- `nodes.py`: retrieval, generation, matching, scoring, validation, and retry implementations.
+- `prompts.py`: instructions for ideal profile generation and evidence-based matching.
+- `schemas.py`: Pydantic structures used with `JsonOutputParser`.
+- `state/`: TypedDict state contracts.
+- `main.py`: example invocation supplied with a job description and candidate data.
 
-- Technical and soft skills
-- Tech stacks
-- Tools and platforms
-- Certifications
-- Work experience
-- Coursework
-- Achievements
-- Education
-- Mandatory and preferred requirements
-- Minimum experience requirements
-- Required education level
-- Evaluation weights
+## Testing
 
-This allows multiple candidates applying for the same JD to be evaluated against the same persisted Ideal Candidate profile.
+The Matcher should be tested for both cached and newly generated ideal profiles, valid nine-section output, weighted scoring, invalid section data, bounded retries, and integration with the Parser adapter. Run the Matcher tests from the repository root using the actual test directory in your checkout (for example, `python -m pytest tests/matcher -v` if that directory exists).
 
-## Project Structure
+## Known implementation limitations
 
-Relevant Matcher Agent modules:
+- **Scoring error propagation:** `calculate_match_score` collects scoring errors, but `validate_match_result` initializes a fresh error list. Some scoring errors may be lost before routing. The total-weight check also occurs inside the scoring loop.
+- **Weight validation:** The prompt requests weights totaling 100, but the generated profile is not shown undergoing a separate normalization or full validation step before persistence.
+- **Schema divergence:** The Pydantic `MatchResult` includes recommendation fields that the actual matching nodes do not generate.
+- **Adapter strictness:** Missing Parser keys raise `KeyError`; there is no defaulting or explicit input validation in the adapter.
+- **Retry scope:** Only result-validation failures route to retries; LLM parsing exceptions and database errors propagate.
+- **Logging:** Debug prints can expose candidate information and model outputs. Remove or redact them in production.
+- **Concurrency:** Ideal-profile creation performs a check followed by an insert; concurrent requests for the same new `jd_id` may require uniqueness-conflict handling.
 
-```text
-agents/
-├── db/
-│   ├── base.py
-│   ├── connection.py
-│   └── models.py
-│
-└── matcher/
-    ├── graph.py
-    ├── nodes.py
-    ├── state/
-    │   └── matcher_state.py
-    ├── schemas/
-    │   ├── candidate.py
-    │   ├── ideal_candidate.py
-    │   └── match_result.py
-    └── prompts/
-        └── ...
-        
-tests/
-└── matcher/
-    ├── test_matcher_graph.py
-    └── test_calculate_match_score.py
-```
-
-*The structure above highlights the relevant modules; adjust filenames if your local implementation differs.*
-
-## Running Tests
-
-Run all Matcher Agent tests:
-
-```bash
-python -m pytest -v tests/matcher/ -s
-```
-
-Run the scoring tests:
-
-```bash
-python -m pytest -v tests/matcher/test_calculate_match_score.py -s
-```
-
-Run the graph integration tests:
-
-```bash
-python -m pytest -v tests/matcher/test_matcher_graph.py -s
-```
-
-### Tested Scenarios
-
-The test suite covers:
-
-- Generating and saving the first Ideal Candidate profile for a JD.
-- Reusing the saved profile for another candidate applying to the same JD.
-- Generating a separate Ideal Candidate profile for a different JD.
-- Calculating weighted match scores.
-- Retrying after an invalid matching response.
-- Successfully completing evaluation after a retry.
-- Terminating after the maximum retry count.
-
-## Technology Stack
-
-- **Python** – Core implementation.
-- **LangGraph** – Agent workflow orchestration.
-- **LangChain** – LLM integration and prompt management.
-- **Groq** – LLM inference provider.
-- **Pydantic** – Structured output schemas and validation.
-- **SQLAlchemy** – Database interaction.
-- **SQLite** – Local database persistence.
-- **Pytest** – Automated testing.
-
-## Execution Flow Summary
-
-The Matcher Agent follows a reusable evaluation process:
-
-1. Receive a candidate profile and job description ID.
-2. Retrieve the Ideal Candidate profile from the database.
-3. Generate and persist the profile if it does not exist.
-4. Evaluate the candidate against the profile.
-5. Calculate the weighted match score.
-6. Validate the evaluation result.
-7. Retry if validation fails and retries remain.
-8. Return the final matching result and validation status.
-
-The architecture separates profile generation from candidate evaluation, reducing repeated LLM calls and ensuring consistent evaluation criteria across candidates applying for the same job description.
